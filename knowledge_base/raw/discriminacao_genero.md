@@ -1,0 +1,3 @@
+Discriminação de gênero no trabalho inclui tratamento desigual relacionado ao sexo, identidade de gênero, gravidez, maternidade ou exercício de direitos reprodutivos. Pode aparecer como recusa de contratação, impedimento de promoção, assédio, comentários ofensivos ou diferenciação injustificada de funções e salários.
+
+A Constituição Federal estabelece igualdade e vedação de discriminação. A CLT e legislação complementar também proíbem práticas discriminatórias e preveem responsabilização do empregador quando há violação de direitos. Ambientes de trabalho devem ter políticas de prevenção, apuração e resposta efetiva às denúncias.

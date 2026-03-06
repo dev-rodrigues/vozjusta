@@ -1,0 +1,3 @@
+A discriminação racial no ambiente de trabalho pode ocorrer na contratação, promoção, remuneração, distribuição de tarefas ou no tratamento cotidiano. Quando uma pessoa é inferiorizada, excluída ou limitada por causa de raça, cor, etnia ou origem, há violação de direitos fundamentais.
+
+No Brasil, a Lei 7.716/1989 define crimes resultantes de preconceito de raça ou cor. O Estatuto da Igualdade Racial (Lei 12.288/2010) reforça a promoção de igualdade de oportunidades e o enfrentamento da discriminação. Empresas e empregadores têm dever de prevenir e combater práticas discriminatórias, inclusive com canais internos de denúncia e medidas disciplinares.

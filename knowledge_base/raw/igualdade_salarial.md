@@ -1,0 +1,3 @@
+A igualdade salarial determina remuneração igual para trabalho de igual valor, sem discriminação por sexo, raça, etnia, origem ou outras condições protegidas por lei. Diferenças salariais injustificadas podem gerar direito à equiparação salarial e reparações administrativas ou judiciais.
+
+A Lei 14.611/2023 reforça mecanismos de transparência e igualdade salarial entre homens e mulheres. Organizações podem ser obrigadas a adotar medidas para corrigir disparidades e prestar informações sobre critérios remuneratórios. Trabalhadores que identificarem diferença injustificada devem reunir evidências e buscar orientação oficial.
