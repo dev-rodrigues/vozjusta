@@ -1,0 +1,23 @@
+__pycache__/
+*.py[cod]
+*.so
+*.egg-info/
+.Python
+.venv/
+.idea/
+.env
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+ruff_cache/
+*.log
+.DS_Store
+
+# Alembic artifacts
+*.db
+
+# Docker
+postgres_data/
+ollama_data/
+.docker-data/
