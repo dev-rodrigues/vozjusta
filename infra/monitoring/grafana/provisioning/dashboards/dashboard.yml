@@ -1,0 +1,12 @@
+apiVersion: 1
+
+providers:
+  - name: VozJusta Business
+    orgId: 1
+    folder: VozJusta
+    type: file
+    disableDeletion: false
+    editable: false
+    allowUiUpdates: false
+    options:
+      path: /var/lib/grafana/dashboards
