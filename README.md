@@ -2,11 +2,17 @@
 
 Monorepo Python para um RAG jurídico local com FastAPI + PostgreSQL/pgvector + Ollama.
 
+## Links do Projeto
+
+- Repositorio da aplicacao: https://github.com/dev-rodrigues/vozjusta
+- Pull Request principal: https://github.com/dev-rodrigues/vozjusta/pull/1
+- Capturas do dashboard Grafana: [img.png](docs/img.png)
 ## Estrutura
 
 - `apps/api`: API FastAPI
 - `apps/ingest`: CLI de ingestão (`vozjusta-ingest run`)
 - `apps/eval`: avaliação com perguntas de aceitação
+- `apps/web`: SPA pública de chat (React + Vite + motion + React Query + shadcn/ui)
 - `packages/rag_core`: utilitários de chunking, prompt e guardrails
 - `packages/legal_kb`: ingestão, modelos e persistência da base jurídica
 - `infra/docker`: ambiente Docker (Postgres + Ollama + Prometheus + Grafana)
@@ -17,6 +23,7 @@ Monorepo Python para um RAG jurídico local com FastAPI + PostgreSQL/pgvector + 
 
 - Python 3.11+
 - [uv](https://docs.astral.sh/uv/)
+- Node.js 20+ e npm
 - Docker + Docker Compose
 
 ## Inicialização Em Um Comando
@@ -35,7 +42,10 @@ Esse comando faz bootstrap automático:
 - garante modelos no Ollama (`llama3.1:8b` e `nomic-embed-text`);
 - aplica migrações;
 - executa ingestão inicial apenas se a base estiver vazia;
-- inicia a API já pronta em `http://localhost:8000/swagger`.
+- inicia a API já pronta em `http://localhost:8000/swagger`;
+- inicia também o frontend React em `http://localhost:5173` (logs em `logs/web-dev.log`).
+
+Use `Ctrl+C` no terminal do `make start` para encerrar API e frontend juntos.
 
 Para parar containers depois, use:
 
@@ -93,7 +103,8 @@ Use prefixo `VOZJUSTA_` para configurar:
 - `VOZJUSTA_OLLAMA_CHAT_MODEL` (default: `llama3.1:8b`)
 - `VOZJUSTA_OLLAMA_EMBEDDING_MODEL` (default: `nomic-embed-text`)
 - `VOZJUSTA_OLLAMA_TIMEOUT_SECONDS` (default: `300`)
-- `VOZJUSTA_OLLAMA_NUM_PREDICT` (default: `220`)
+- `VOZJUSTA_OLLAMA_NUM_PREDICT` (default: `96`)
+- `VOZJUSTA_OLLAMA_NUM_CTX` (default: `1024`)
 - `VOZJUSTA_OLLAMA_KEEP_ALIVE` (default: `30m`)
 - `VOZJUSTA_USE_HOST_OLLAMA` (default: `true` no macOS, `false` fora do macOS)
 - `VOZJUSTA_BOOTSTRAP_MODELS` (default: `true`)
@@ -103,10 +114,12 @@ Use prefixo `VOZJUSTA_` para configurar:
 - `VOZJUSTA_GRAFANA_ADMIN_USER` (default: `admin`)
 - `VOZJUSTA_GRAFANA_ADMIN_PASSWORD` (default: `admin`)
 - `VOZJUSTA_ADMIN_TOKEN` (default: `trocar-token-admin`)
-- `VOZJUSTA_RAG_RETRIEVE_TOP_K` (default: `8`)
-- `VOZJUSTA_RAG_CONTEXT_TOP_K` (default: `2`)
+- `VOZJUSTA_RAG_RETRIEVE_TOP_K` (default: `4`)
+- `VOZJUSTA_RAG_CONTEXT_TOP_K` (default: `1`)
+- `VOZJUSTA_RAG_CONTEXT_EXCERPT_MAX_CHARS` (default: `320`)
 - `VOZJUSTA_ASK_CACHE_TTL_SECONDS` (default: `600`)
 - `VOZJUSTA_ASK_CACHE_MAX_ITEMS` (default: `256`)
+- `VOZJUSTA_CORS_ALLOWED_ORIGINS` (default: `http://localhost:5173`, aceita lista separada por vírgula)
 - `VOZJUSTA_AUTO_INGEST_ON_START` (default: `true`)
 - `VOZJUSTA_INGEST_PATH` (default: `knowledge_base/raw`)
 
@@ -143,6 +156,41 @@ make pull-models
 uv run --package vozjusta-api vozjusta-api
 ```
 
+## SPA Web (Chat Público)
+
+A aplicação web está em `apps/web` e consome `POST /api/v1/ask`.
+
+1. Instale dependências:
+
+```bash
+make web-install
+```
+
+2. Suba a API (terminal 1):
+
+```bash
+make api
+```
+
+3. Suba a SPA (terminal 2):
+
+```bash
+make web-dev
+```
+
+4. Abra `http://localhost:5173`.
+
+Build de produção:
+
+```bash
+make web-build
+```
+
+Variável de ambiente do frontend (`apps/web/.env.example`):
+
+- `VITE_API_BASE_URL` (default: `http://localhost:8000`)
+- `VITE_API_TIMEOUT_MS` (default: `180000`)
+
 ### Endpoints principais
 
 - `POST /api/v1/ask`
@@ -171,11 +219,94 @@ Validação rápida:
 make monitor-check
 ```
 
+Retenção de histórico:
+
+- Prometheus configurado com retenção explícita de `240h` (10 dias), cobrindo com folga a necessidade de `50h`.
+- O TSDB fica persistido em `.docker-data/prometheus` (bind mount no bucket).
+- Evite comandos destrutivos como `docker compose down -v`, pois removem volumes/dados.
+- Você pode ajustar a retenção pelo `.env` via `VOZJUSTA_PROMETHEUS_RETENTION_TIME` (ex.: `240h`, `336h`).
+- No dashboard de negócio, os painéis de distribuição/cobertura usam janela fixa de `50h`, então mesmo se a URL abrir com outro range (ex.: `from=now-3h`) eles continuam mostrando o histórico das últimas 50 horas.
+
 Para desligar apenas monitoramento:
 
 ```bash
 make monitor-down
 ```
+
+### Popular Grafana com carga simulada
+
+Use o script abaixo para enviar perguntas em perfil organico ao endpoint `/api/v1/ask` e gerar dados para os paineis de negocio:
+
+```bash
+./scripts/popular_grafana_ask_load.sh
+```
+
+Exemplo rapido (2 minutos, distribuicao por persona/tema):
+
+```bash
+./scripts/popular_grafana_ask_load.sh \
+  --duration-minutes 2 \
+  --interval-seconds 8 \
+  --jitter-pct 35 \
+  --burst-probability-pct 10 \
+  --followup-probability-pct 25 \
+  --cache-hit-probability-pct 75 \
+  --request-timeout-seconds 320 \
+  --error-backoff-seconds 30
+```
+
+Para simular carga longa (ex.: 50h) em background:
+
+```bash
+nohup ./scripts/popular_grafana_ask_load.sh \
+  --duration-minutes 3000 \
+  --interval-seconds 8 \
+  --jitter-pct 35 \
+  --burst-probability-pct 10 \
+  --followup-probability-pct 25 \
+  --cache-hit-probability-pct 75 \
+  --request-timeout-seconds 320 \
+  --error-backoff-seconds 30 \
+  --log-file logs/popular_grafana_ask_load_50h.log \
+  > logs/popular_grafana_ask_load_50h.out 2>&1 &
+```
+
+Para injetar histórico sintético já no passado (ex.: 90h), sem esperar execução real:
+
+```bash
+make backfill-90h
+```
+
+Versão parametrizável:
+
+```bash
+make backfill-history HOURS=120 STEP_MINUTES=10
+```
+
+Checklist de validacao apos a carga:
+
+- `GET /metrics` deve mostrar incremento em `vozjusta_business_questions_total` e `vozjusta_business_sources_per_answer`.
+- Prometheus (`http://localhost:9090`) deve manter target `vozjusta-api` em `UP`.
+- Grafana (`http://localhost:3000`) deve refletir volume de perguntas, temas e confianca no dashboard `VozJusta - Negocio V1`.
+
+### Modo Sintético (Demo)
+
+Para demo sem depender de inferencia do LLM, voce pode subir um exporter sintetico que gera metricas de negocio com comportamento organico:
+
+```bash
+make synthetic-up
+make synthetic-check
+```
+
+O target sera `vozjusta-synthetic` (scrape em `host.docker.internal:9201`), e os paineis do dashboard passam a receber essa carga simulada.
+
+Para desligar:
+
+```bash
+make synthetic-down
+```
+
+Observacao: use esse modo apenas para simulacao/ambiente de demonstracao.
 
 ### Documentação Swagger
 

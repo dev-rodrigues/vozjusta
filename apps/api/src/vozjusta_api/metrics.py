@@ -19,6 +19,19 @@ THEMES: tuple[str, ...] = (
     "outros",
 )
 
+ASK_OUTCOME_LABEL_VALUES: tuple[str, ...] = ("answer", "fallback", "error")
+CONFIDENCE_LABEL_VALUES: tuple[str, ...] = ("high", "medium", "low")
+CANNOT_ANSWER_REASON_VALUES: tuple[str, ...] = (
+    "sem_contexto",
+    "contexto_insuficiente",
+    "resposta_vazia_modelo",
+    "runtime_error",
+    "other",
+)
+INGESTION_STATUS_VALUES: tuple[str, ...] = ("success", "invalid_path", "failed", "other")
+THEME_DETECTION_METHOD_VALUES: tuple[str, ...] = ("source", "keyword", "default")
+DISCLAIMER_COMPLIANCE_VALUES: tuple[str, ...] = ("true", "false")
+
 ASK_OUTCOMES = {"answer", "fallback", "error"}
 CONFIDENCE_LEVELS = {"high", "medium", "low"}
 CANNOT_ANSWER_REASONS = {
@@ -267,6 +280,47 @@ def observe_business_ingestion_run(status: str) -> None:
     BUSINESS_INGESTION_RUNS_TOTAL.labels(status=safe_status).inc()
     if safe_status == "success":
         BUSINESS_KB_LAST_SUCCESS_UNIXTIME.set(time.time())
+
+
+def set_business_kb_last_success_unixtime(timestamp: float | None) -> None:
+    if timestamp is None or timestamp < 0:
+        BUSINESS_KB_LAST_SUCCESS_UNIXTIME.set(0.0)
+        return
+    BUSINESS_KB_LAST_SUCCESS_UNIXTIME.set(float(timestamp))
+
+
+def _preinitialize_business_metrics() -> None:
+    # Pre-initialize low-cardinality series so dashboards show explicit zeros instead of "No data".
+    for outcome in ASK_OUTCOME_LABEL_VALUES:
+        ASK_REQUEST_TOTAL.labels(result=outcome)
+
+    for theme in THEMES:
+        for outcome in ASK_OUTCOME_LABEL_VALUES:
+            for confidence in CONFIDENCE_LABEL_VALUES:
+                BUSINESS_QUESTIONS_TOTAL.labels(
+                    theme=theme,
+                    outcome=outcome,
+                    confidence=confidence,
+                )
+
+    for theme in THEMES:
+        for reason in CANNOT_ANSWER_REASON_VALUES:
+            BUSINESS_CANNOT_ANSWER_TOTAL.labels(theme=theme, reason=reason)
+
+    for compliant in DISCLAIMER_COMPLIANCE_VALUES:
+        BUSINESS_DISCLAIMER_COMPLIANCE_TOTAL.labels(compliant=compliant)
+
+    for theme in THEMES:
+        for method in THEME_DETECTION_METHOD_VALUES:
+            BUSINESS_THEME_DETECTION_TOTAL.labels(theme=theme, method=method)
+
+    for status in INGESTION_STATUS_VALUES:
+        BUSINESS_INGESTION_RUNS_TOTAL.labels(status=status)
+
+    set_business_kb_last_success_unixtime(0.0)
+
+
+_preinitialize_business_metrics()
 
 
 def metrics_response() -> Response:

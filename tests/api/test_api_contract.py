@@ -120,3 +120,35 @@ def test_ask_runtime_dependency_error_returns_503():
     response = client.post("/api/v1/ask", json={"question": "Pergunta teste"})
     assert response.status_code == 503
     assert "Modelo Ollama" in response.json()["detail"]
+
+
+def test_ask_preflight_cors_allows_configured_origin():
+    client = _client()
+    allowed_origin = api_main.settings.cors_allowed_origins_list[0]
+
+    response = client.options(
+        "/api/v1/ask",
+        headers={
+            "Origin": allowed_origin,
+            "Access-Control-Request-Method": "POST",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.headers.get("access-control-allow-origin") == allowed_origin
+
+
+def test_ask_cors_ignores_unknown_origin():
+    client = _client()
+    unknown_origin = "https://origem-invalida.example"
+    if unknown_origin in api_main.settings.cors_allowed_origins_list:
+        unknown_origin = "https://origem-bloqueada.example"
+
+    response = client.post(
+        "/api/v1/ask",
+        json={"question": "Pergunta valida para CORS"},
+        headers={"Origin": unknown_origin},
+    )
+
+    assert response.status_code == 200
+    assert "access-control-allow-origin" not in response.headers
