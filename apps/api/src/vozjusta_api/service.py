@@ -50,6 +50,7 @@ class RagService:
             embedding_model=settings.ollama_embedding_model,
             timeout_seconds=settings.ollama_timeout_seconds,
             num_predict=settings.ollama_num_predict,
+            num_ctx=settings.ollama_num_ctx,
             keep_alive=settings.ollama_keep_alive,
         )
         self._cache_lock = Lock()
@@ -180,6 +181,42 @@ class RagService:
             overlap=120,
         )
 
+    def get_last_successful_ingestion_unixtime(self) -> float | None:
+        sql = text(
+            """
+            SELECT finished_at
+            FROM ingestion_runs
+            WHERE status = 'success'
+              AND finished_at IS NOT NULL
+            ORDER BY finished_at DESC
+            LIMIT 1;
+            """
+        )
+
+        try:
+            with self.session_factory() as session:
+                value = session.execute(sql).scalar_one_or_none()
+        except Exception:
+            return None
+
+        if value is None:
+            return None
+
+        if isinstance(value, datetime):
+            dt = value if value.tzinfo is not None else value.replace(tzinfo=UTC)
+            return dt.timestamp()
+
+        if isinstance(value, str):
+            normalized = value.strip().replace("Z", "+00:00")
+            try:
+                parsed = datetime.fromisoformat(normalized)
+            except ValueError:
+                return None
+            dt = parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=UTC)
+            return dt.timestamp()
+
+        return None
+
     def _fallback_response(
         self,
         reason: str,
@@ -237,12 +274,13 @@ class RagService:
             return response
 
         selected = contexts[:context_top_k]
+        excerpt_max_chars = max(200, self.settings.rag_context_excerpt_max_chars)
         context_payload = [
             {
                 "title": item.title,
                 "authority": item.authority,
                 "legal_ref": item.legal_ref,
-                "excerpt": item.excerpt,
+                "excerpt": item.excerpt[:excerpt_max_chars],
             }
             for item in selected
         ]

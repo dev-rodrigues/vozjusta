@@ -21,3 +21,9 @@ ruff_cache/
 postgres_data/
 ollama_data/
 .docker-data/
+
+# Frontend / Node
+node_modules/
+dist/
+*.tsbuildinfo
+apps/web/.env.local

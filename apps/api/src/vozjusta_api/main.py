@@ -7,6 +7,7 @@ from uuid import uuid4
 
 import uvicorn
 from fastapi import Depends, FastAPI, HTTPException, Request, Security
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import APIKeyHeader
 
 from .logging_config import configure_logging, correlation_id_ctx
@@ -18,6 +19,7 @@ from .metrics import (
     observe_business_ask,
     observe_business_ask_runtime_error,
     observe_business_ingestion_run,
+    set_business_kb_last_success_unixtime,
 )
 from .schemas import (
     AskRequest,
@@ -63,7 +65,11 @@ admin_token_scheme = APIKeyHeader(
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    app.state.rag_service = RagService(settings=settings)
+    rag_service = RagService(settings=settings)
+    app.state.rag_service = rag_service
+    set_business_kb_last_success_unixtime(
+        rag_service.get_last_successful_ingestion_unixtime()
+    )
     logger.info("api_initialized", extra={"event_env": settings.app_env})
     yield
 
@@ -81,6 +87,14 @@ app = FastAPI(
     contact={"name": "Equipe VozJusta"},
     license_info={"name": "MIT"},
     lifespan=lifespan,
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_allowed_origins_list,
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 

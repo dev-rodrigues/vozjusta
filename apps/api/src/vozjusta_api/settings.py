@@ -30,12 +30,20 @@ class Settings(BaseSettings):
     ollama_chat_model: str = "llama3.1:8b"
     ollama_embedding_model: str = "nomic-embed-text"
     ollama_timeout_seconds: int = 300
-    ollama_num_predict: int = 220
+    ollama_num_predict: int = 96
+    ollama_num_ctx: int = 1024
     ollama_keep_alive: str = "30m"
 
     admin_token: str = "trocar-token-admin"
     minimum_similarity_for_answer: float = 0.45
-    rag_retrieve_top_k: int = 8
-    rag_context_top_k: int = 2
+    rag_retrieve_top_k: int = 4
+    rag_context_top_k: int = 1
+    rag_context_excerpt_max_chars: int = 320
     ask_cache_ttl_seconds: int = 600
     ask_cache_max_items: int = 256
+    cors_allowed_origins: str = "http://localhost:5173"
+
+    @property
+    def cors_allowed_origins_list(self) -> list[str]:
+        parsed = [item.strip() for item in self.cors_allowed_origins.split(",") if item.strip()]
+        return parsed or ["http://localhost:5173"]

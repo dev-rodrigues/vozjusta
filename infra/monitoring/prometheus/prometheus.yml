@@ -11,6 +11,15 @@ scrape_configs:
         labels:
           app: vozjusta-api
 
+  - job_name: vozjusta-synthetic
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - host.docker.internal:9201
+        labels:
+          app: vozjusta-synthetic
+          mode: synthetic
+
   - job_name: prometheus
     static_configs:
       - targets:

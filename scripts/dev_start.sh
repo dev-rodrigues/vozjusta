@@ -4,6 +4,9 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
+API_PID=""
+WEB_PID=""
+
 log() {
   printf '[vozjusta-start] %s\n' "$*"
 }
@@ -81,6 +84,8 @@ EOF
   : "${VOZJUSTA_INGEST_PATH:=knowledge_base/raw}"
   : "${VOZJUSTA_BOOTSTRAP_MODELS:=true}"
   : "${VOZJUSTA_AUTO_INGEST_ON_START:=true}"
+  : "${VOZJUSTA_WEB_HOST:=0.0.0.0}"
+  : "${VOZJUSTA_WEB_PORT:=5173}"
 
   local default_use_host_ollama="false"
   if [ "$(uname -s)" = "Darwin" ]; then
@@ -103,6 +108,8 @@ EOF
     VOZJUSTA_INGEST_PATH \
     VOZJUSTA_BOOTSTRAP_MODELS \
     VOZJUSTA_AUTO_INGEST_ON_START \
+    VOZJUSTA_WEB_HOST \
+    VOZJUSTA_WEB_PORT \
     VOZJUSTA_USE_HOST_OLLAMA
 }
 
@@ -114,6 +121,24 @@ ensure_runtime_tools() {
     else
       fail "Dependências não encontradas na .venv e 'uv' não está no PATH. Execute: uv sync --all-packages --dev"
     fi
+  fi
+}
+
+ensure_web_runtime() {
+  if [ ! -d "$ROOT_DIR/apps/web" ] || [ ! -f "$ROOT_DIR/apps/web/package.json" ]; then
+    fail "Frontend React não encontrado em apps/web. Verifique a estrutura do monorepo."
+  fi
+
+  if ! command -v npm >/dev/null 2>&1; then
+    fail "'npm' não encontrado no PATH. Instale Node.js 20+ para subir o frontend."
+  fi
+
+  if [ ! -d "$ROOT_DIR/apps/web/node_modules" ]; then
+    log "Instalando dependências do frontend (npm install)..."
+    (
+      cd "$ROOT_DIR/apps/web"
+      npm install
+    )
   fi
 }
 
@@ -319,26 +344,114 @@ run_ingestion_if_needed() {
 print_summary() {
   log "Stack pronta. URLs:"
   log "- API/Swagger: http://localhost:${VOZJUSTA_PORT}/swagger"
+  log "- Frontend React: http://localhost:${VOZJUSTA_WEB_PORT}"
   log "- Prometheus: http://localhost:9090"
   log "- Grafana: http://localhost:3000 (admin/admin por padrão)"
 }
 
+cleanup_processes() {
+  trap - EXIT INT TERM
+
+  if [ -n "$API_PID" ] && kill -0 "$API_PID" >/dev/null 2>&1; then
+    kill "$API_PID" >/dev/null 2>&1 || true
+  fi
+  if [ -n "$WEB_PID" ] && kill -0 "$WEB_PID" >/dev/null 2>&1; then
+    kill "$WEB_PID" >/dev/null 2>&1 || true
+  fi
+
+  if [ -n "$API_PID" ]; then
+    wait "$API_PID" >/dev/null 2>&1 || true
+  fi
+  if [ -n "$WEB_PID" ]; then
+    wait "$WEB_PID" >/dev/null 2>&1 || true
+  fi
+}
+
+handle_signal() {
+  log "Encerrando API e frontend..."
+  cleanup_processes
+  exit 0
+}
+
+start_web() {
+  mkdir -p "$ROOT_DIR/logs"
+  local web_log="$ROOT_DIR/logs/web-dev.log"
+
+  log "Iniciando frontend React em http://localhost:${VOZJUSTA_WEB_PORT}..."
+  (
+    cd "$ROOT_DIR/apps/web"
+    npm run dev -- --host "$VOZJUSTA_WEB_HOST" --port "$VOZJUSTA_WEB_PORT"
+  ) >"$web_log" 2>&1 &
+  WEB_PID="$!"
+
+  sleep 1
+  if ! kill -0 "$WEB_PID" >/dev/null 2>&1; then
+    tail -n 60 "$web_log" || true
+    fail "Falha ao iniciar frontend React. Veja ${web_log}."
+  fi
+
+  wait_http "http://localhost:${VOZJUSTA_WEB_PORT}" "Frontend React" 120
+}
+
 start_api() {
+  log "Iniciando API em http://localhost:${VOZJUSTA_PORT}..."
+  "$ROOT_DIR/.venv/bin/vozjusta-api" &
+  API_PID="$!"
+
+  sleep 1
+  if ! kill -0 "$API_PID" >/dev/null 2>&1; then
+    fail "Falha ao iniciar API."
+  fi
+
+  wait_http "http://localhost:${VOZJUSTA_PORT}/api/v1/health" "API" 120
+}
+
+wait_for_service_exit() {
+  while true; do
+    if ! kill -0 "$API_PID" >/dev/null 2>&1; then
+      set +e
+      wait "$API_PID"
+      local api_status=$?
+      set -e
+      log "API encerrada (status ${api_status}). Encerrando frontend..."
+      return "$api_status"
+    fi
+
+    if ! kill -0 "$WEB_PID" >/dev/null 2>&1; then
+      set +e
+      wait "$WEB_PID"
+      local web_status=$?
+      set -e
+      log "Frontend encerrado (status ${web_status}). Encerrando API..."
+      return "$web_status"
+    fi
+
+    sleep 1
+  done
+}
+
+start_services() {
+  trap handle_signal INT TERM
+  trap cleanup_processes EXIT
+
+  start_web
+  start_api
   print_summary
-  log "Iniciando API (Ctrl+C para parar a API)..."
-  exec "$ROOT_DIR/.venv/bin/vozjusta-api"
+  log "API e frontend em execução (Ctrl+C para parar ambos)."
+  wait_for_service_exit
 }
 
 main() {
   ensure_env_file_and_load
   ensure_runtime_tools
+  ensure_web_runtime
   run_compose_infra
   wait_postgres
   ensure_ollama_up
   ensure_models
   run_migrations
   run_ingestion_if_needed
-  start_api
+  start_services
 }
 
 main "$@"

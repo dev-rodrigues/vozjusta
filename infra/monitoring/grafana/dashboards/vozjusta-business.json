@@ -59,8 +59,8 @@
     },
     {
       "id": 2,
-      "type": "barchart",
-      "title": "Distribuição por Tema (período selecionado)",
+      "type": "bargauge",
+      "title": "Distribuição por Tema (últimas 50h)",
       "datasource": {
         "type": "prometheus",
         "uid": "vozjusta-prometheus"
@@ -73,7 +73,7 @@
       },
       "targets": [
         {
-          "expr": "sum(increase(vozjusta_business_questions_total[$__range])) by (theme)",
+          "expr": "sum(increase(vozjusta_business_questions_total[50h])) by (theme) or label_replace(vector(0), \"theme\", \"outros\", \"__name__\", \".*\")",
           "legendFormat": "{{theme}}",
           "instant": true,
           "refId": "A"
@@ -89,8 +89,7 @@
         "legend": {
           "displayMode": "list",
           "placement": "bottom"
-        },
-        "xField": "theme"
+        }
       }
     },
     {
@@ -133,7 +132,7 @@
     {
       "id": 4,
       "type": "piechart",
-      "title": "Distribuição de Confiança",
+      "title": "Distribuição de Confiança (últimas 50h)",
       "datasource": {
         "type": "prometheus",
         "uid": "vozjusta-prometheus"
@@ -146,7 +145,7 @@
       },
       "targets": [
         {
-          "expr": "sum(increase(vozjusta_business_questions_total[$__range])) by (confidence)",
+          "expr": "sum(increase(vozjusta_business_questions_total[50h])) by (confidence)",
           "legendFormat": "{{confidence}}",
           "instant": true,
           "refId": "A"
@@ -162,8 +161,8 @@
     },
     {
       "id": 5,
-      "type": "barchart",
-      "title": "Motivos de Não Resposta",
+      "type": "bargauge",
+      "title": "Motivos de Não Resposta (últimas 50h)",
       "datasource": {
         "type": "prometheus",
         "uid": "vozjusta-prometheus"
@@ -176,7 +175,7 @@
       },
       "targets": [
         {
-          "expr": "sum(increase(vozjusta_business_cannot_answer_total[$__range])) by (reason)",
+          "expr": "sum(increase(vozjusta_business_cannot_answer_total[50h])) by (reason) or label_replace(vector(0), \"reason\", \"sem_contexto\", \"__name__\", \".*\") or label_replace(vector(0), \"reason\", \"contexto_insuficiente\", \"__name__\", \".*\") or label_replace(vector(0), \"reason\", \"resposta_vazia_modelo\", \"__name__\", \".*\") or label_replace(vector(0), \"reason\", \"runtime_error\", \"__name__\", \".*\") or label_replace(vector(0), \"reason\", \"other\", \"__name__\", \".*\")",
           "legendFormat": "{{reason}}",
           "instant": true,
           "refId": "A"
@@ -192,14 +191,13 @@
         "legend": {
           "displayMode": "list",
           "placement": "bottom"
-        },
-        "xField": "reason"
+        }
       }
     },
     {
       "id": 6,
       "type": "stat",
-      "title": "Média de Fontes por Resposta (5m)",
+      "title": "Média de Fontes por Resposta (últimas 50h)",
       "datasource": {
         "type": "prometheus",
         "uid": "vozjusta-prometheus"
@@ -212,7 +210,7 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(vozjusta_business_sources_per_answer_sum[5m])) / clamp_min(sum(rate(vozjusta_business_sources_per_answer_count[5m])), 0.000001)",
+          "expr": "(sum(increase(vozjusta_business_sources_per_answer_sum[50h])) / clamp_min(sum(increase(vozjusta_business_sources_per_answer_count[50h])), 1)) or vector(0)",
           "refId": "A"
         }
       ],
@@ -236,7 +234,7 @@
     {
       "id": 7,
       "type": "stat",
-      "title": "Frescor da Base (segundos desde última ingestão)",
+      "title": "Frescor da Base (segundos; último sucesso em 50h)",
       "datasource": {
         "type": "prometheus",
         "uid": "vozjusta-prometheus"
@@ -249,7 +247,7 @@
       },
       "targets": [
         {
-          "expr": "time() - vozjusta_business_kb_last_success_unixtime",
+          "expr": "((time() - max(max_over_time(vozjusta_business_kb_last_success_unixtime[50h]))) * (max(max_over_time(vozjusta_business_kb_last_success_unixtime[50h])) > bool 0)) or vector(0)",
           "refId": "A"
         }
       ],
@@ -272,8 +270,8 @@
     },
     {
       "id": 8,
-      "type": "barchart",
-      "title": "Execuções de Ingestão por Status",
+      "type": "bargauge",
+      "title": "Execuções de Ingestão por Status (últimas 50h)",
       "datasource": {
         "type": "prometheus",
         "uid": "vozjusta-prometheus"
@@ -286,7 +284,7 @@
       },
       "targets": [
         {
-          "expr": "sum(increase(vozjusta_business_ingestion_runs_total[$__range])) by (status)",
+          "expr": "sum(increase(vozjusta_business_ingestion_runs_total[50h])) by (status) or label_replace(vector(0), \"status\", \"success\", \"__name__\", \".*\") or label_replace(vector(0), \"status\", \"invalid_path\", \"__name__\", \".*\") or label_replace(vector(0), \"status\", \"failed\", \"__name__\", \".*\") or label_replace(vector(0), \"status\", \"other\", \"__name__\", \".*\")",
           "legendFormat": "{{status}}",
           "instant": true,
           "refId": "A"
@@ -302,8 +300,7 @@
         "legend": {
           "displayMode": "list",
           "placement": "bottom"
-        },
-        "xField": "status"
+        }
       }
     }
   ],
@@ -319,13 +316,13 @@
     "list": []
   },
   "time": {
-    "from": "now-6h",
+    "from": "now-50h",
     "to": "now"
   },
   "timepicker": {},
   "timezone": "browser",
   "title": "VozJusta - Negócio V1",
   "uid": "vozjusta-business-v1",
-  "version": 1,
+  "version": 7,
   "weekStart": ""
 }

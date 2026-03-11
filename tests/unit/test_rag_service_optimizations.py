@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import Any
 
 from vozjusta_api.service import RagService, RetrievedContext
@@ -76,3 +77,73 @@ def test_ask_uses_configured_retrieve_and_context_top_k(monkeypatch) -> None:
     response = service.ask("Teste top k")
     assert seen["limit"] == 6
     assert len(response.sources) == 2
+
+
+def test_get_last_successful_ingestion_unixtime_with_datetime() -> None:
+    settings = Settings(database_url="sqlite+pysqlite:///:memory:")
+    service = RagService(settings)
+
+    expected = datetime(2026, 3, 10, 15, 0, tzinfo=UTC)
+
+    class _Result:
+        def scalar_one_or_none(self):
+            return expected
+
+    class _Session:
+        def execute(self, _sql):
+            return _Result()
+
+    class _SessionContext:
+        def __enter__(self):
+            return _Session()
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    service.session_factory = lambda: _SessionContext()
+
+    assert service.get_last_successful_ingestion_unixtime() == expected.timestamp()
+
+
+def test_get_last_successful_ingestion_unixtime_with_invalid_value_returns_none() -> None:
+    settings = Settings(database_url="sqlite+pysqlite:///:memory:")
+    service = RagService(settings)
+
+    class _Result:
+        def scalar_one_or_none(self):
+            return "invalid-date"
+
+    class _Session:
+        def execute(self, _sql):
+            return _Result()
+
+    class _SessionContext:
+        def __enter__(self):
+            return _Session()
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    service.session_factory = lambda: _SessionContext()
+
+    assert service.get_last_successful_ingestion_unixtime() is None
+
+
+def test_get_last_successful_ingestion_unixtime_handles_query_failure() -> None:
+    settings = Settings(database_url="sqlite+pysqlite:///:memory:")
+    service = RagService(settings)
+
+    class _Session:
+        def execute(self, _sql):
+            raise RuntimeError("db indisponivel")
+
+    class _SessionContext:
+        def __enter__(self):
+            return _Session()
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    service.session_factory = lambda: _SessionContext()
+
+    assert service.get_last_successful_ingestion_unixtime() is None

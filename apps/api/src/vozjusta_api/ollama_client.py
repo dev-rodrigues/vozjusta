@@ -13,6 +13,7 @@ class OllamaClient:
         embedding_model: str,
         timeout_seconds: int = 90,
         num_predict: int = 220,
+        num_ctx: int = 2048,
         keep_alive: str = "30m",
     ) -> None:
         self.base_url = base_url.rstrip("/")
@@ -20,6 +21,7 @@ class OllamaClient:
         self.embedding_model = embedding_model
         self.timeout_seconds = timeout_seconds
         self.num_predict = num_predict
+        self.num_ctx = num_ctx
         self.keep_alive = keep_alive
 
     @staticmethod
@@ -93,6 +95,8 @@ class OllamaClient:
         options: dict[str, Any] = {}
         if self.num_predict > 0:
             options["num_predict"] = self.num_predict
+        if self.num_ctx > 0:
+            options["num_ctx"] = self.num_ctx
 
         payload = {
             "model": self.chat_model,
